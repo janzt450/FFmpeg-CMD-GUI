@@ -1,0 +1,5 @@
+{
+  "name": "FFmpeg CMD GUI",
+  "description": "Helps the user set up common FFmpeg command line codes",
+  "requestFramePermissions": []
+}
