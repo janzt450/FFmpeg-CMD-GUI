@@ -1,5 +1,17 @@
 
-export type ToolType = 'trim' | 'stitch' | 'convert' | 'extract' | 'scale' | 'gif';
+export type ToolType = 'trim' | 'stitch' | 'convert' | 'extract' | 'scale' | 'gif' | 'addAudio' | 'extractFrames' | 'crop';
+
+export interface ToolColorConfig {
+  trim: string;
+  stitch: string;
+  convert: string;
+  extract: string;
+  scale: string;
+  gif: string;
+  addAudio: string;
+  extractFrames: string;
+  crop: string;
+}
 
 export interface CommandHistory {
   id: string;
@@ -43,5 +55,35 @@ export interface ScaleConfig {
   width: string;
   height: string;
   maintainAspect: boolean;
+  output: string;
+}
+
+export interface AddAudioConfig {
+  videoInput: string;
+  audioInput: string;
+  replaceOriginal: boolean;
+  output: string;
+}
+
+export interface ExtractFramesConfig {
+  input: string;
+  mode: 'single' | 'sequence';
+  timestamp: string;
+  fps: string;
+  output: string;
+}
+
+export interface CropConfig {
+  input: string;
+  width: string;
+  height: string;
+  x: string;
+  y: string;
+  output: string;
+  isBatch: boolean;
+}
+
+export interface GifConfig {
+  input: string;
   output: string;
 }

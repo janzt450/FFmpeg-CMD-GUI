@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { CommandBuilder } from './components/CommandBuilder';
-import { ToolType, CommandHistory } from './types';
+import { ToolType, CommandHistory, ToolColorConfig } from './types';
 import { 
   Github, 
   Share2, 
@@ -31,12 +31,32 @@ import {
   ChevronDown
 } from 'lucide-react';
 
-const App: React.FC = () => {
-  const [activeTool, setActiveTool] = useState<ToolType>('trim');
-  const [history, setHistory] = useState<CommandHistory[]>([]);
+const DEFAULT_COLORS: ToolColorConfig = {
+  trim: '#ef4444',    // Red
+  stitch: '#3b82f6',  // Blue
+  convert: '#10b981', // Emerald
+  extract: '#f59e0b', // Amber
+  scale: '#8b5cf6',   // Violet
+  gif: '#ec4899',     // Pink
+  addAudio: '#06b6d4', // Cyan
+  extractFrames: '#f97316', // Orange
+  crop: '#84cc16'     // Lime
+};
 
-  // Footer State
+const GITHUB_URL = 'https://github.com/janzt450/FFmpeg-CMD-GUI';
+
+const App: React.FC = () => {
+  const [activeTool, setActiveTool] = useState<ToolType>('crop');
+  const [history, setHistory] = useState<CommandHistory[]>([]);
+  const [toolColors, setToolColors] = useState<ToolColorConfig>(() => {
+    const saved = localStorage.getItem('ffmpeg_tool_colors');
+    return saved ? JSON.parse(saved) : DEFAULT_COLORS;
+  });
+
+  // UI State
   const [isFooterOpen, setIsFooterOpen] = useState(false);
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
   // Modals State
   const [isTransparencyOpen, setIsTransparencyOpen] = useState(false);
@@ -49,8 +69,23 @@ const App: React.FC = () => {
   const [noticeUrl, setNoticeUrl] = useState<string | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
 
-  // Close modals on ESC
   useEffect(() => {
+    localStorage.setItem('ffmpeg_tool_colors', JSON.stringify(toolColors));
+  }, [toolColors]);
+
+  const handleContextMenu = useCallback((e: MouseEvent) => {
+    e.preventDefault();
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+    setIsContextMenuOpen(true);
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setIsContextMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('click', closeContextMenu);
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setNoticeUrl(null);
@@ -59,14 +94,18 @@ const App: React.FC = () => {
         setIsOSSOpen(false);
         setIsShareOpen(false);
         setIsRoadmapOpen(false);
+        closeContextMenu();
       }
     };
     window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, []);
+    return () => {
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('click', closeContextMenu);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [handleContextMenu, closeContextMenu]);
 
   const handleCommandGenerated = (cmd: string) => {
-    // Avoid duplicates at top of list
     if (history.length > 0 && history[0].command === cmd) return;
 
     const newItem: CommandHistory = {
@@ -76,7 +115,7 @@ const App: React.FC = () => {
       timestamp: Date.now()
     };
 
-    setHistory(prev => [newItem, ...prev].slice(0, 10)); // Keep last 10
+    setHistory(prev => [newItem, ...prev].slice(0, 10));
   };
 
   const handleExternalLink = (url: string) => {
@@ -102,9 +141,55 @@ const App: React.FC = () => {
     setTimeout(() => setHasCopied(false), 2000);
   };
 
+  const updateToolColor = (tool: ToolType, color: string) => {
+    setToolColors(prev => ({ ...prev, [tool]: color }));
+  };
+
+  const resetColors = () => {
+    setToolColors(DEFAULT_COLORS);
+  };
+
   return (
-    <div className="flex h-screen bg-background text-gray-200 overflow-hidden font-sans relative">
+    <div className="flex h-screen bg-background text-gray-200 overflow-hidden font-sans relative select-none">
       
+      {/* Custom Context Menu */}
+      {isContextMenuOpen && (
+        <div 
+          className="fixed z-[1000] bg-sidebar border border-border shadow-2xl rounded-xl p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150"
+          style={{ top: contextMenuPos.y, left: contextMenuPos.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 px-2 mb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-border pb-2">
+            <Palette className="w-3 h-3" /> Tool Colors
+          </div>
+          <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
+            {(Object.keys(DEFAULT_COLORS) as ToolType[]).map((t) => (
+              <div key={t} className="flex items-center justify-between gap-3 px-2 py-1.5 hover:bg-white/5 rounded-lg group transition-colors">
+                <span className="text-xs font-medium capitalize text-gray-300">{t}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-gray-500">{toolColors[t]}</span>
+                  <div className="relative w-5 h-5 rounded overflow-hidden ring-1 ring-white/10 shadow-sm">
+                    <input 
+                      type="color" 
+                      value={toolColors[t]} 
+                      onChange={(e) => updateToolColor(t, e.target.value)}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="w-full h-full" style={{ backgroundColor: toolColors[t] }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button 
+            onClick={resetColors}
+            className="w-full mt-3 py-1.5 text-[10px] font-bold text-accent hover:bg-accent/10 rounded-lg transition-colors border border-accent/20"
+          >
+            Reset All Colors
+          </button>
+        </div>
+      )}
+
       {/* Roadmap Modal */}
       {isRoadmapOpen && (
         <div 
@@ -241,7 +326,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="mt-auto">
                   <button 
-                    onClick={() => handleExternalLink('https://github.com/janzt450/Color-Detect')}
+                    onClick={() => handleExternalLink(GITHUB_URL)}
                     className="w-full py-2.5 bg-[#2a314d] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#343b59] transition-all"
                   >
                     <ExternalLink className="w-4 h-4" /> View Code
@@ -441,6 +526,9 @@ const App: React.FC = () => {
         onSelectTool={setActiveTool}
         history={history}
         onClearHistory={() => setHistory([])}
+        toolColors={toolColors}
+        onColorChange={updateToolColor}
+        onResetColors={resetColors}
       />
       
       <div className="flex-1 flex flex-col min-w-0 h-full">
@@ -448,11 +536,11 @@ const App: React.FC = () => {
             <CommandBuilder 
               tool={activeTool} 
               onCommandGenerated={handleCommandGenerated}
+              toolColors={toolColors}
             />
         </main>
 
         <footer className={`border-t border-border bg-background/90 backdrop-blur-md shrink-0 z-10 flex flex-col transition-all duration-300 ease-in-out ${isFooterOpen ? 'h-[72px]' : 'h-6'}`}>
-            {/* Toggle Bar */}
             <div 
                 className="h-6 w-full flex items-center justify-between px-4 cursor-pointer hover:bg-white/5 border-b border-white/5 transition-colors group"
                 onClick={() => setIsFooterOpen(!isFooterOpen)}
@@ -462,7 +550,6 @@ const App: React.FC = () => {
                 <ChevronUp className={`w-3.5 h-3.5 text-gray-600 group-hover:text-accent transition-all duration-300 ${isFooterOpen ? 'rotate-180' : ''}`} />
             </div>
 
-            {/* Content */}
             <div className={`flex-1 flex items-center justify-center gap-6 overflow-hidden transition-opacity duration-200 ${isFooterOpen ? 'opacity-100' : 'opacity-0'}`}>
                 <button 
                 onClick={() => setIsShareOpen(true)}
@@ -471,7 +558,7 @@ const App: React.FC = () => {
                 <Share2 className="w-3.5 h-3.5" /> Share App
                 </button>
                 <button 
-                onClick={() => handleExternalLink('https://github.com/janzt450/Color-Detect')}
+                onClick={() => handleExternalLink(GITHUB_URL)}
                 className="flex items-center gap-2 text-xs text-gray-500 hover:text-accent transition-colors"
                 >
                 <Github className="w-3.5 h-3.5" /> View Source Code

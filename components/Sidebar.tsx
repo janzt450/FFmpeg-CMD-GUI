@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Scissors, 
   Files, 
@@ -11,31 +11,49 @@ import {
   Clock,
   Trash2,
   Check,
-  Copy
+  Copy,
+  Settings,
+  ChevronUp,
+  ChevronDown,
+  RotateCcw,
+  Palette,
+  Volume2,
+  Camera,
+  Crop
 } from 'lucide-react';
-import { ToolType, CommandHistory } from '../types';
+import { ToolType, CommandHistory, ToolColorConfig } from '../types';
 
 interface SidebarProps {
   activeTool: ToolType;
   onSelectTool: (tool: ToolType) => void;
   history: CommandHistory[];
   onClearHistory: () => void;
+  toolColors: ToolColorConfig;
+  onColorChange: (tool: ToolType, color: string) => void;
+  onResetColors: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTool,
   onSelectTool,
   history,
-  onClearHistory
+  onClearHistory,
+  toolColors,
+  onColorChange,
+  onResetColors
 }) => {
-  const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
   const tools: { id: ToolType; label: string; icon: React.ReactNode; desc: string }[] = [
+    { id: 'crop', label: 'Mass Crop', icon: <Crop className="w-4 h-4" />, desc: 'Batch crop photos/videos' },
     { id: 'trim', label: 'Trim / Cut', icon: <Scissors className="w-4 h-4" />, desc: 'Cut video segments' },
     { id: 'stitch', label: 'Stitch / Merge', icon: <Files className="w-4 h-4" />, desc: 'Join multiple files' },
     { id: 'convert', label: 'Convert Format', icon: <RefreshCw className="w-4 h-4" />, desc: 'Change container/codec' },
     { id: 'extract', label: 'Extract Audio', icon: <Music className="w-4 h-4" />, desc: 'Save audio track' },
+    { id: 'addAudio', label: 'Add Audio', icon: <Volume2 className="w-4 h-4" />, desc: 'Merge audio to video' },
     { id: 'scale', label: 'Resize / Scale', icon: <Scaling className="w-4 h-4" />, desc: 'Change resolution' },
+    { id: 'extractFrames', label: 'Extract Frames', icon: <Camera className="w-4 h-4" />, desc: 'Capture video frames' },
     { id: 'gif', label: 'Video to GIF', icon: <Film className="w-4 h-4" />, desc: 'Create optimized GIFs' },
   ];
 
@@ -59,22 +77,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Tools</p>
-        {tools.map((tool) => (
-          <button
-            key={tool.id}
-            onClick={() => onSelectTool(tool.id)}
-            className={`w-full text-left p-3 rounded-xl transition-all border flex flex-col gap-1 ${
-              activeTool === tool.id
-                ? 'bg-accent/10 border-accent/50 text-white shadow-lg shadow-accent/5'
-                : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
-            }`}
-          >
-            <div className="flex items-center gap-3 font-semibold text-sm">
-              {tool.icon}
-              {tool.label}
-            </div>
-          </button>
-        ))}
+        <div className="space-y-1.5">
+          {tools.map((tool) => {
+            const isActive = activeTool === tool.id;
+            const color = toolColors[tool.id];
+            
+            return (
+              <button
+                key={tool.id}
+                onClick={() => onSelectTool(tool.id)}
+                className={`w-full text-left p-3 rounded-xl transition-all border flex flex-col gap-1 group ${
+                  isActive
+                    ? 'bg-card border-border shadow-xl'
+                    : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                }`}
+                style={{ 
+                  boxShadow: isActive ? `0 4px 20px -10px ${color}40` : 'none',
+                  borderColor: isActive ? `${color}50` : 'transparent'
+                }}
+              >
+                <div className={`flex items-center gap-3 font-semibold text-sm ${isActive ? 'text-white' : ''}`}>
+                  <span 
+                    className="transition-transform duration-300 group-hover:scale-110" 
+                    style={{ color: color }}
+                  >
+                    {tool.icon}
+                  </span>
+                  {tool.label}
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
         {history.length > 0 && (
           <div className="pt-6 mt-4 border-t border-border">
@@ -91,9 +125,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div 
                   key={item.id} 
                   className="bg-card border border-border rounded-lg p-2.5 group relative"
+                  style={{ borderLeft: `3px solid ${toolColors[item.tool]}` }}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-accent uppercase">{item.tool}</span>
+                    <span 
+                      className="text-[10px] font-bold uppercase"
+                      style={{ color: toolColors[item.tool] }}
+                    >
+                      {item.tool}
+                    </span>
                     <button 
                       onClick={() => handleCopy(item.command, item.id)}
                       className="text-gray-500 hover:text-white transition-colors"
@@ -111,8 +151,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="p-4 border-t border-border text-[10px] text-gray-600 text-center leading-relaxed">
-        Processing is done locally. No AI used. No data or telemetry is sent or collected in this app.
+      {/* Settings Section */}
+      <div className="border-t border-border bg-black/10 flex flex-col shrink-0">
+        <button 
+            onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+            className="p-4 flex items-center justify-between w-full hover:bg-white/5 transition-colors"
+        >
+            <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Interface Colors</span>
+            </div>
+            {isSettingsExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronUp className="w-4 h-4 text-gray-500" />}
+        </button>
+
+        {isSettingsExpanded && (
+            <div className="px-4 pb-4 space-y-3 overflow-y-auto max-h-[350px] animate-in slide-in-from-bottom-2 duration-200">
+                 <div className="flex items-center justify-between px-1 mb-2">
+                    <div className="flex items-center gap-1.5 text-gray-400">
+                        <Palette className="w-3 h-3" />
+                        <span className="text-[10px] font-bold uppercase">Customize</span>
+                    </div>
+                    <button 
+                        onClick={onResetColors}
+                        className="p-1.5 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-all group"
+                        title="Reset Defaults"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5 group-active:rotate-180 transition-transform" />
+                    </button>
+                 </div>
+
+                 {tools.map(tool => (
+                     <div key={tool.id} className="flex items-center justify-between bg-card border border-border/60 rounded-xl p-3 group hover:border-accent/30 hover:bg-white/[0.02] transition-all">
+                        <div className="flex items-center gap-3">
+                            <div 
+                                className="w-9 h-9 rounded-lg flex items-center justify-center bg-black/30 shadow-inner"
+                                style={{ color: toolColors[tool.id] }}
+                            >
+                                {tool.icon}
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-gray-200 group-hover:text-white transition-colors">{tool.label}</span>
+                                <span className="text-[10px] font-mono text-gray-600 uppercase tracking-tight">{toolColors[tool.id]}</span>
+                            </div>
+                        </div>
+                        <div className="relative w-7 h-7 rounded-md overflow-hidden ring-2 ring-white/5 hover:ring-white/20 transition-all shadow-lg group/picker">
+                            <input 
+                                type="color"
+                                value={toolColors[tool.id]}
+                                onChange={(e) => onColorChange(tool.id, e.target.value)}
+                                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                            />
+                            <div 
+                                className="w-full h-full"
+                                style={{ backgroundColor: toolColors[tool.id] }}
+                            />
+                        </div>
+                     </div>
+                 ))}
+                 
+                 <div className="mt-4 p-3 bg-black/20 rounded-lg border border-border/40 text-[9px] text-gray-600 text-center italic">
+                    All processing is local. Interface preferences are saved to your browser's local storage.
+                 </div>
+            </div>
+        )}
       </div>
     </div>
   );
